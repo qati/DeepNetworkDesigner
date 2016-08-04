@@ -94,8 +94,26 @@
         $(source).connections({to: "#"+target});
     };
 
+    var saveLayer = function(id){
+        var nn = $("#"+id.replace("div", "button")).val();
+        var arr = id.split("_");
+        layers.push({
+            id: arr[arr.length-1],
+            type: arr[arr.length-2],
+            neurons: nn,
+            connected: {
+                before: null,
+                after: null
+            }
+        });
+    };
+
+    var updateLayer = function (id) {
+        
+    };
+
     var addLayer = function(id, addButton, connectionSource, connectionTarget, addText){
-        var lid = id + layersID++;
+        var lid = id + "_" + layersID++;
         $("#"+containerID).append("<div class='layer_box' id='div_"+lid+"'></div>");
         var layer = $("#div_"+lid);
         var bkg_color = id.indexOf("input")!=-1 ? colors.layer.input
@@ -109,7 +127,7 @@
         });
         layer.draggable();
         if (addButton) {
-            layer.html("<input type='button' id='button_" + lid + "' value='0' /><span>"
+            layer.html("<input type='button' id='button_" + lid + "' class='button_layer' value='0' /><span>"
                         + getText(id) + "</span>");
             layer.on("click", "#button_" + lid, function () {
                 $("#neuronnum_layer_dialog").data('buttonID', lid);
@@ -216,6 +234,8 @@
             html += helpMessages[i].menuEntry();
         }
 
+        html += "<li id='scale_layer_color'><div>Scale colors</div></li>";
+
         html += "</ul></div>";
 
         $("#"+containerID).append(html);
@@ -234,6 +254,25 @@
         });
     };
 
+    var scale_colors = function () {
+        var layers = $(".layer_box");
+        var layers_button = $(".button_layer");
+        var min=1e20, max=-1e20;
+        var val;
+        for(var i=0;i<layers_button.length;i++){
+            val =Number(layers_button[i].value);
+            if (val<min) min = val;
+            if (val>max) max = val;
+        }
+        layer_color.domain([min, max]);
+        for(var i=0;i<layers.length;i++){
+            if (layers[i].id.indexOf("input")!=-1) continue;
+            if (layers[i].id.indexOf("output")!=-1) continue;
+            var c = Number(layers[i].getElementsByClassName("button_layer")[0].value);
+            layers[i].style["background-color"] = layer_color(c);
+        }
+    };
+
     var events = function(){
         for(var key in layer_ids){
             $("#"+layer_ids[key]).on("click", function(){
@@ -243,6 +282,8 @@
         for(var i in helpMessages){
             helpMessages[i].openOnClick();
         }
+
+        $("#scale_layer_color").on("click", scale_colors);
         $.repeat().add('connection').each($).connections('update').wait(0);
     };
 
