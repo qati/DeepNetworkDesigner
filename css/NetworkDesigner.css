@@ -109,10 +109,10 @@
     -ms-user-select: none;
     user-select: none;
 }
-.layer_box input[type=button]{
+.layer_box input.button_layer{
     position: absolute;
     top: 5px;
-    left: 40%;
+    left: 13%;
     font-weight: bold;
     font-size: 16px;
 }
@@ -126,4 +126,8 @@
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+}
+
+#ts_link{
+    margin-top: 10px;
 }
