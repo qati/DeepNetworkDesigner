@@ -143,11 +143,11 @@
         $("#neuronnum_layer_dialog").dialog({
             autoOpen: false,
             show: {
-                effect: "blind",
+                effect: "fade",
                 duration: 500
             },
             hide: {
-                effect: "blind",
+                effect: "fade",
                 duration: 500
             },
             open: function(){
@@ -176,11 +176,11 @@
         $("#"+id+"_dialog").dialog({
             autoOpen: false,
             show: {
-                effect: "blind",
+                effect: "puff",
                 duration: 700
             },
             hide: {
-                effect: "explode",
+                effect: "puff",
                 duration: 700
             },
             buttons: {

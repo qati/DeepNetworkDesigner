@@ -7,16 +7,19 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.js"></script>
     <script>
         require.config({
-            //baseUrl: "http://localhost:63342/DeepNetworkDesigner/js",
+          //  baseUrl: "http://localhost:63342/DeepNetworkDesigner/js",
             baseUrl: "https://rawgit.com/qati/DeepNetworkDesigner/master/js/",
             path: {
-                "NetworkDesigner": "NetworkDesigner"
+                "NetworkDesigner": "NetworkDesigner.min"
             }
         });
+        var done = false;
         function netD(){
+            if (done) return;
             require(["NetworkDesigner"], function(nd){
                 nd.init("draw");
             });
+            done = true;
         }
     </script>
     <link rel="stylesheet" href="css/NetworkDesigner.css"></link>
