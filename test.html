@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Deep Network Designer</title>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.0/themes/base/jquery-ui.css">
+
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.js"></script>
+  <script>
+      require.config({
+         path: {
+           "NetworkDesigner": "NetworkDesigner"
+         }
+      });
+      require(["NetworkDesigner"], function(nd){
+         nd.init("draw");
+      });
+  </script>
+    <link rel="stylesheet" href="NetworkDesigner.css"></link>
+</head>
+
+<body>
+<svg style="background: wheat; width: 800px; height: 200px;" ></svg>
+<div id="draw">
+    <div id="navigator">
+    <ul id="menu">
+        <li><div>Add layer</div>
+            <ul>
+                <li id="layer_tanh"><div>Tanh</div></li>
+                <li id="layer_lin"><div>Linear</div></li>
+            </ul>
+        </li>
+        <li id="connect_layer"><div>Connect layer</div></li>
+    </ul>
+    </div>
+
+</div>
+</body>
+
+</html>
