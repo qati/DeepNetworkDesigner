@@ -30,15 +30,33 @@
 })(function (NetworkDesigner, $, d3) {
 
     var containerID;
-    var layers = [], layersID;
 
+    var layers = [];
+    var layersID;
     var layer_ids = {
-        tanh: "layer_tanh",
-        lin: "layer_lin"
+        Identity: "layer_identity",
+        Sigmoid: "layer_sigmoid",
+        TANH: "layer_tanh",
+        LINEAR: "layer_linear",
+        ReLU: "layer_relu",
+        Chooser: "layer_chooser",
+        Radial: "layer_radial"
+    };
+
+    var connection_queue = [];
+
+    var helpMessages = [];
+
+    var colors = {
+        layer: {
+            input: "#00A000",
+            output: "#F6BD00",
+            hidden: ["steelblue", "red"]
+        }
     };
 
     var layer_color = d3.scale.linear()
-        .domain([0, 5000]).range(["steelblue", "red"])
+        .domain([0, 5000]).range(colors.layer.hidden)
         .interpolate(d3.interpolateRgb);
 
 
@@ -48,142 +66,74 @@
         }
     };
 
-    var events = function(){
-        var connection_queue = [];
-        for(var key in layer_ids){
-            $("#"+layer_ids[key]).on("click", function(){
-                var id = $(this)[0].id + layersID++;
-
-                $("#"+containerID).append("<div class='layer_box' id='div_"+id+"'></div>");
-                var layer = $("#div_"+id);
-                layer.html("<input type='button' id='button_"+id+"' value='0' /><span>"+getText($(this)[0].id)+"</span>");
-                layer.css({
-                    position: "relative",
-                    top: "100px",
-                    left: "100px"
-                });
-                layer.draggable();
-                layer.droppable({
-                    drop: function(){
-                        var source;
-                        if (connection_queue.length!=1) {
-                            var helper = $("#drawConnectionHelper");
-                            source = "#" + String(helper.text());
-                            helper.remove();
-                        } else {
-                            source = "#" + String(connection_queue.pop());
-                        }
-                        $(this).connections({to: source});
-                    }
-                });
-                layer.dblclick(function(e){
-                    $("#"+containerID).append("<div id='drawConnectionHelper'>div_"+id+"</div>");
-                    var helper = $("#drawConnectionHelper");
-                    helper.css({
-                        top: e.pageY + "px",
-                        left: e.pageX+"px"
-                    });
-                    helper.draggable();
-                    helper.on("mouseup", function () {
-                        connection_queue.push($(this).text());
-                        $(this).remove();
-                    });
-                    $(this).connections({to: "#drawConnectionHelper"});
-                });
-                layer.on("click", "#button_"+id, function(){
-                    $("#neuronnum_layer_dialog").data('buttonID', id);
-                    $("#neuronnum_layer_dialog").dialog("open");
-                });
-            });
-        }
-        $.repeat().add('connection').each($).connections('update').wait(0);
-
-        $("#connect_layer").on("click", function () {
-            $( "#connect_layer_dialog" ).dialog( "open" );
+    var drawConnection = function(e, id){
+        connection_queue = [];
+        $("#"+containerID).append("<div id='drawConnectionHelper'>div_"+id+"</div>");
+        var helper = $("#drawConnectionHelper");
+        helper.css({
+            top:  e.pageY + "px",
+            left: e.pageX + "px"
         });
-
-        $("#"+containerID).append("<div class='layer_box' id='div_layer_input'></div>");
-        var layer = $("#div_layer_input");
-        layer.css({
-            position: "relative",
-            top: "100px",
-            left: "10px",
-            "background-color": "#00A000"
+        helper.draggable();
+        helper.on("mouseup", function () {
+            connection_queue.push($(this).text());
+            $(this).remove();
         });
-        layer.draggable();
-        layer.append("<center>Input layer</center>");
-        layer.dblclick(function(e){
-            $("#"+containerID).append("<div id='drawConnectionHelper'>div_layer_input</div>");
-            var helper = $("#drawConnectionHelper");
-            helper.css({
-                top: e.pageY + "px",
-                left: e.pageX+"px"
-            });
-            helper.draggable();
-            helper.on("mouseup", function () {
-                connection_queue.push($(this).text());
-                $(this).remove();
-            });
-            $(this).connections({to: "#drawConnectionHelper"});
-        });
-
-        $("#"+containerID).append("<div class='layer_box' id='div_layer_output'></div>");
-        var layer = $("#div_layer_output");
-        layer.css({
-            position: "relative",
-            top: "100px",
-            left: "500px",
-            "background-color": "#F6BD00"
-        });
-        layer.draggable();
-        layer.append("<center>Output layer</center>");
-        layer.droppable({
-            drop: function(){
-                var source;
-                if (connection_queue.length!=1) {
-                    var helper = $("#drawConnectionHelper");
-                    source = "#" + String(helper.text());
-                    helper.remove();
-                } else {
-                    source = "#" + String(connection_queue.pop());
-                }
-                console.log(source)
-                $(this).connections({to: source});
-            }
-        });
-
+        $("#div_"+id).connections({to: "#drawConnectionHelper"});
     };
 
-    NetworkDesigner.init = function(id){
-        containerID = id;
-        layersID = 0;
-        var position = {my: "left top", at: "left bottom+8"};
-
-        $( "#menu" ).menu().menu({
-            position: position,
-            blur: function() {
-                $(this).menu("option", "position", position);
-            },
-            focus: function(e, ui) {
-                if ($("#menu").get(0) !== $(ui).get(0).item.parent().get(0)) {
-                    $(this).menu("option", "position", {my: "left top", at: "left top"});
-            }
+    var connectLayers  = function(target){
+        var source;
+        if (connection_queue.length!=1) {
+            var helper = $("#drawConnectionHelper");
+            source = "#" + String(helper.text());
+            helper.remove();
+        } else {
+            source = "#" + String(connection_queue.pop());
         }
+        $(source).connections({to: "#"+target});
+    };
+
+    var addLayer = function(id, addButton, connectionSource, connectionTarget, addText){
+        var lid = id + layersID++;
+        $("#"+containerID).append("<div class='layer_box' id='div_"+lid+"'></div>");
+        var layer = $("#div_"+lid);
+        var bkg_color = id.indexOf("input")!=-1 ? colors.layer.input
+                        : id.indexOf("output")!=-1 ? colors.layer.output
+                        : colors.layer.hidden[0];
+        layer.css({
+            position: "relative",
+            top: "100px",
+            left: "100px",
+            "background-color": bkg_color
         });
-        $("#"+containerID).append("<div id='connect_layer_dialog' title='Connect layers' style='display: none'>\
-            <p>To connect two layer double click on first layer, grab the arrow and move inside the other layer.</p>\
-            </div>");
-        $( "#connect_layer_dialog" ).dialog({
-            autoOpen: false,
-            show: {
-                effect: "blind",
-                duration: 700
-            },
-            hide: {
-                effect: "explode",
-                duration: 700
-            }
-        });
+        layer.draggable();
+        if (addButton) {
+            layer.html("<input type='button' id='button_" + lid + "' value='0' /><span>"
+                        + getText(id) + "</span>");
+            layer.on("click", "#button_" + lid, function () {
+                $("#neuronnum_layer_dialog").data('buttonID', lid);
+                $("#neuronnum_layer_dialog").dialog("open");
+            });
+        }
+        if (connectionSource){
+            layer.dblclick(function(e){
+                drawConnection(e, lid);
+            });
+        }
+        if (connectionTarget) {
+            layer.droppable({
+                drop: function () {
+                    connectLayers("div_" + lid);
+                }
+            });
+        }
+        if (addText){
+            layer.append(addText);
+        }
+    };
+
+    var addNeuronsToLayer = function(){
         $("#"+containerID).append("<div id='neuronnum_layer_dialog' title='Add neurons' style='display: none'>\
             <form>\
             <label>Enter the number of neurons you want to add to this layer</label>\
@@ -213,13 +163,108 @@
                     button.parent().css({ "background":  layer_color(neuron_num)});
                     $(this).dialog("close");
                 },
-                "Cancel": function() {
+                "Close": function() {
                     $(this).dialog("close");
                 }
             }
-        }).data('buttonID', '-1')
-        ;
+        }).data('buttonID', '-1');
+    };
+
+    var MessageBox = function(id, title, message){
+        $("#"+containerID).append("<div id='"+id+"_dialog' title='"+title+"' style='display: none'>\
+            <p>"+message+"</p></div>");
+        $("#"+id+"_dialog").dialog({
+            autoOpen: false,
+            show: {
+                effect: "blind",
+                duration: 700
+            },
+            hide: {
+                effect: "explode",
+                duration: 700
+            },
+            buttons: {
+                "Close": function() {
+                    $(this).dialog("close");
+                }
+            }
+        });
+
+        this.openOnClick = function(){
+            $("#"+id).on("click", function () {
+                $("#"+id+"_dialog").dialog("open");
+            });
+        };
+
+        this.menuEntry = function () {
+            return "<li id='"+id+"'><div>"+title+"</div></li>";
+        };
+    };
+
+    var createMenu = function(){
+        var html = "";
+
+        html += "<div id='nd_menu_div'><ul id='nd_menu'>";
+
+        html += "<li><div>Add layer</div><ul>";
+        for(var i in layer_ids){
+            html += "<li id='"+layer_ids[i]+"'><div>"+getText(layer_ids[i])+"</div></li>";
+        }
+        html += "</ul></li>";
+
+        for(var i in helpMessages){
+            html += helpMessages[i].menuEntry();
+        }
+
+        html += "</ul></div>";
+
+        $("#"+containerID).append(html);
+
+        var position = {my: "left top", at: "left bottom+8"};
+        $( "#nd_menu" ).menu().menu({
+            position: position,
+            blur: function() {
+                $(this).menu("option", "position", position);
+            },
+            focus: function(e, ui) {
+                if ($("#nd_menu").get(0) !== $(ui).get(0).item.parent().get(0)) {
+                    $(this).menu("option", "position", {my: "left top", at: "left top"});
+                }
+            }
+        });
+    };
+
+    var events = function(){
+        for(var key in layer_ids){
+            $("#"+layer_ids[key]).on("click", function(){
+                addLayer($(this)[0].id, true, true, true);
+            });
+        }
+        for(var i in helpMessages){
+            helpMessages[i].openOnClick();
+        }
+        $.repeat().add('connection').each($).connections('update').wait(0);
+    };
+
+    NetworkDesigner.init = function(id){
+        containerID = id;
+        layersID    = 0;
+
+        connection_queue = [];
+
+        helpMessages.push(new MessageBox("connect_layer", "Connect layers",
+            "To connect two layer double click on first layer, grab the arrow and move inside the other layer."));
+        helpMessages.push(new MessageBox("addneurons", "Add neurons",
+            "To add neurons to a layer click on the number inside the layer."));
+
+        createMenu();
+
         events();
+
+        addLayer("layer_input", false, true, false, "<center>Input layer</center>");
+        addLayer("layer_output", false, false, true, "<center>Output layer</center>");
+
+        addNeuronsToLayer();
     };
 
     return NetworkDesigner;
