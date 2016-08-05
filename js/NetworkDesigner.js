@@ -31,6 +31,14 @@
 
     var containerID;
 
+    var globalOptions = {
+        H: false,
+        V: false,
+        VarTransform: "Normalize",
+        ErrorStrategy: "CROSSENTROPY",
+        WeightInitialization: "XAVIERUNIFORM"
+    };
+
     var layers = Array();
     var layersID;
     var layer_ids = {
@@ -262,17 +270,17 @@
                 var ts = layers[i].trainingStrategy;
                 for(var opt in ts){
                     if (ts[opt]===true || ts[opt]===false){
-                        $("#trainingstrategy_"+opt).attr("checked", ts[opt]);
+                        $("#trainingstrategy_"+opt).prop("checked", ts[opt]);
                         $("#trainingstrategy_"+opt).change(function(){
-                           $(this).attr("value", this.checked ? 1 : 0);
+                           $(this).val(this.checked ? 1 : 0);
                         });
                         if (ts[opt]==true){
-                            $("#trainingstrategy_" + opt).attr("value", 1);
+                            $("#trainingstrategy_" + opt).val(1);
                         } else {
-                            $("#trainingstrategy_" + opt).attr("value", 0);
+                            $("#trainingstrategy_" + opt).val(0);
                         }
                     } else {
-                        $("#trainingstrategy_" + opt).attr("value", ts[opt]);
+                        $("#trainingstrategy_" + opt).val(ts[opt]);
                     }
                 }
             },
@@ -305,6 +313,74 @@
                 }
             }
         }).data('formID', '-1');
+    };
+
+    var globalOptionsForm = function(){
+        var checkboxes = ["H", "V"];
+        $("#"+containerID).append("<div id='globopts_dialog' title='Global options' style='display: none'>\
+            <table>\
+            <tr><td><label>Help messages:</label></td><td><input type='checkbox' id='globopts_H' /></td></tr>\
+            <tr><td><label>Verbose:</label></td><td><input type='checkbox' id='globopts_V' /></td></tr>\
+            <tr><td><label>VarTransform:</label></td><td><input type='text' id='globopts_VarTransform' /></td></tr>\
+            <tr><td><label>ErrorStrategy:</label></td><td><input type='text' id='globopts_ErrorStrategy' /></td></tr>\
+            <tr><td><label>WeightInitialization:</label></td><td><input type='text' id='globopts_WeightInitialization' /></td></tr>\
+            </table\
+            </div>");
+        $("#globopts_dialog").dialog({
+            autoOpen: false,
+            width: 400,
+            show: {
+                effect: "fade",
+                duration: 500
+            },
+            hide: {
+                effect: "fade",
+                duration: 500
+            },
+            open: function(){
+                for(var opt in globalOptions){
+                    if (globalOptions[opt]===true || globalOptions[opt]===false){
+                        $("#globopts_"+opt).attr("checked", globalOptions[opt]);
+                        $("#globopts_"+opt).change(function(){
+                            $(this).attr("value", this.checked ? 1 : 0);
+                        });
+                        if (globalOptions[opt]==true){
+                            $("#globopts_" + opt).attr("value", 1);
+                        } else {
+                            $("#globopts_" + opt).attr("value", 0);
+                        }
+                    } else {
+                        $("#globopts_" + opt).attr("value", globalOptions[opt]);
+                    }
+                }
+            },
+            buttons: {
+                "OK": function(){
+                    var arr = $("#globopts_dialog input");
+                    var id;
+                    var changed;
+                    for(var i=0;i<arr.length;i++){
+                        changed = false;
+                        id = arr[i].id.split("_")[1];
+                        for(var j=0;j<checkboxes.length;j++){
+                            if (checkboxes[j]==id) {
+                                if (Number(arr[i].value)==1){
+                                    globalOptions[id] = true;
+                                } else {
+                                    globalOptions[id] = false;
+                                }
+                                changed = true;
+                            }
+                        }
+                        if (!changed) globalOptions[id] = arr[i].value;
+                    }
+                    $(this).dialog("close");
+                },
+                "Close": function() {
+                    $(this).dialog("close");
+                }
+            }
+        });
     };
 
     var MessageBox = function(id, title, message){
@@ -356,6 +432,8 @@
         var html = "";
 
         html += "<div id='nd_menu_div'><ul id='nd_menu'>";
+
+        html += "<li><div id='globopts_menu'>Global options</div></li>";
 
         html += "<li><div>Add layer</div><ul>";
         for(var i in layer_ids){
@@ -445,7 +523,19 @@
         }
     };
 
-    var save_net = function(){
+    var genOptString = function(){
+        var opt = "";
+        for(var k in globalOptions){
+            if (typeof(globalOptions[k]) == "boolean"){
+                if (globalOptions[k]==true){
+                    opt += k + ":";
+                } else {
+                    opt += "!"+k+":";
+                }
+            } else {
+                opt += k + "=" + globalOptions[k] + ":";
+            }
+        }
         var input_layer = getInputLayer();
         var layout = genLayerString(input_layer);
         var training_strategy = genTrainingStrategyString(input_layer);
@@ -457,8 +547,12 @@
         }
         layout = layout.substr(0, layout.length-1);
         training_strategy = training_strategy.substr(0, training_strategy.length-1);
-        alert("Layout="+layout);
-        alert("TrainingStrategy="+training_strategy);
+        opt += "Layout="+layout + ":TrainingStrategy="+training_strategy;
+        return opt;
+    };
+
+    var save_net = function(){
+        alert(genOptString());
     };
 
     var events = function(){
@@ -470,6 +564,9 @@
         for(var i in helpMessages){
             helpMessages[i].openOnClick();
         }
+        $("#globopts_menu").on("click", function(){
+           $("#globopts_dialog").dialog("open");
+        });
         $("#scale_layer_color").on("click", scale_colors);
         $("#save_net").on("click", save_net);
         $.repeat().add('connection').each($).connections('update').wait(0);
@@ -495,6 +592,7 @@
 
         addNeuronsToLayer();
         trainingStrategyForm();
+        globalOptionsForm();
     };
 
     return NetworkDesigner;

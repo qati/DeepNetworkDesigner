@@ -144,6 +144,10 @@
     float: right;
 }
 
+#globopts_dialog tr td:first-child{
+    float: right;
+}
+
 #trainingstrategy_dialog input {
     width: 150px;
 }
