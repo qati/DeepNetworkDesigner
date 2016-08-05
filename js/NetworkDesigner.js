@@ -82,6 +82,30 @@
         $("#div_"+id).connections({to: "#drawConnectionHelper"});
     };
 
+    var initLayer = function(i, type){
+        layers[ i ] = {
+            type: type,
+            neurons: 0,
+            connected: {
+                before: null,
+                after: null
+            },
+            trainingStrategy: {
+                LearningRate: 1e-1,
+                Momentum: 0.0,
+                Repetitions: 1,
+                ConvergenceSteps: 500,
+                BatchSize: 10,
+                TestRepetitions: 1,
+                WeightDecay: 0.001,
+                Regularization: "NONE",
+                DropConfig: "",
+                DropRepetitions: "",
+                Multithreading: true
+            }
+        };
+    };
+
     var connectLayers  = function(target){
         var source;
         if (connection_queue.length!=1) {
@@ -96,16 +120,9 @@
     };
 
     var saveLayer = function(id){
-        var nn = Number($("#button_"+id).val());
         var arr = id.split("_");
-        layers[ Number(arr[arr.length-1]) ] = {
-            type: arr[arr.length-2],
-            neurons: nn,
-            connected: {
-                before: null,
-                after: null
-            }
-        };
+        layers[ Number(arr[arr.length-1]) ].type    = arr[arr.length-2];
+        layers[ Number(arr[arr.length-1]) ].neurons = Number($("#button_"+id).val());
     };
 
     var updateLayer = function (id, neuron_num, connected_before, connected_after) {
@@ -164,14 +181,14 @@
         if (addText){
             layer.append(addText);
         }
-        saveLayer(lid);
+        var arr = lid.split("_");
+        initLayer( Number(arr[arr.length-1]), arr[arr.length-2]);
     };
 
     var addNeuronsToLayer = function(){
         $("#"+containerID).append("<div id='neuronnum_layer_dialog' title='Add neurons' style='display: none'>\
             <form>\
-            <label>Number of neurons</label>\
-            <input type='text'>\
+            <label>Number of neurons: </label><input type='text'>\
             </form>\
             <div id='ts_link'><input id='training_strategy_button' type='button' class='ui-button' value='Training Strategy' /></div>\
             </div>");
@@ -211,14 +228,26 @@
         });
     };
 
-    var traningStrategyForm = function(){
+    var trainingStrategyForm = function(){
+        var checkboxes = ["Multithreading"];
         $("#"+containerID).append("<div id='trainingstrategy_dialog' title='Training Strategy' style='display: none'>\
-            <form>\
-            <label>hi</label>\
-            </form>\
+            <table>\
+            <tr><td><label>LearningRate:</label></td><td><input type='text' id='trainingstrategy_LearningRate' /></td></tr>\
+            <tr><td><label>Momentum:</label></td><td><input type='text' id='trainingstrategy_Momentum' /></td></tr>\
+            <tr><td><label>Repetitions:</label></td><td><input type='text' id='trainingstrategy_Repetitions'/></td></tr>\
+            <tr><td><label>ConvergenceSteps:</label></td><td><input type='text' id='trainingstrategy_ConvergenceSteps' /></td></tr>\
+            <tr><td><label>BatchSize:</label></td><td><input type='text' id='trainingstrategy_BatchSize' /></td></tr>\
+            <tr><td><label>TestRepetitions:</label></td><td><input type='text' id='trainingstrategy_TestRepetitions' /></td></tr>\
+            <tr><td><label>WeightDecay:</label></td><td><input type='text' id='trainingstrategy_WeightDecay' /></td></tr>\
+            <tr><td><label>Regularization:</label></td><td><input type='text' id='trainingstrategy_Regularization' /></td></tr>\
+            <tr><td><label>DropConfig:</label></td><td><input type='text' id='trainingstrategy_DropConfig' /></td></tr>\
+            <tr><td><label>DropRepetitions:</label></td><td><input type='text' id='trainingstrategy_DropRepetitions' /></td></tr>\
+            <tr><td><label>Multithreading:</label></td><td><input type='checkbox' id='trainingstrategy_Multithreading' /></td></tr>\
+            </table\
             </div>");
         $("#trainingstrategy_dialog").dialog({
             autoOpen: false,
+            width: 400,
             show: {
                 effect: "fade",
                 duration: 500
@@ -227,9 +256,48 @@
                 effect: "fade",
                 duration: 500
             },
+            open: function(){
+                var arr = $(this).data("formID").split("_");
+                var i   = Number(arr[arr.length-1]);
+                var ts = layers[i].trainingStrategy;
+                for(var opt in ts){
+                    if (ts[opt]===true || ts[opt]===false){
+                        $("#trainingstrategy_"+opt).attr("checked", ts[opt]);
+                        $("#trainingstrategy_"+opt).change(function(){
+                           $(this).attr("value", this.checked ? 1 : 0);
+                        });
+                        if (ts[opt]==true){
+                            $("#trainingstrategy_" + opt).attr("value", 1);
+                        } else {
+                            $("#trainingstrategy_" + opt).attr("value", 0);
+                        }
+                    } else {
+                        $("#trainingstrategy_" + opt).attr("value", ts[opt]);
+                    }
+                }
+            },
             buttons: {
                 "OK": function(){
-                    console.log($(this).data("formID"));
+                    var arr = $(this).data("formID").split("_");
+                    var idx   = Number(arr[arr.length-1]);
+                    arr = $("#trainingstrategy_dialog input");
+                    var id;
+                    var changed;
+                    for(var i=0;i<arr.length;i++){
+                        changed = false;
+                        id = arr[i].id.split("_")[1];
+                        for(var j=0;j<checkboxes.length;j++){
+                            if (checkboxes[j]==id) {
+                                if (Number(arr[i].value)==1){
+                                    layers[idx].trainingStrategy[id] = true;
+                                } else {
+                                    layers[idx].trainingStrategy[id] = false;
+                                }
+                                changed = true;
+                            }
+                        }
+                        if (!changed) layers[idx].trainingStrategy[id] = arr[i].value;
+                    }
                     $(this).dialog("close");
                 },
                 "Close": function() {
@@ -323,21 +391,21 @@
     };
 
     var scale_colors = function () {
-        var layers = $(".layer_box");
-        var layers_button = $(".button_layer");
+        var layer_boxes = $(".layer_box");
         var min=1e20, max=-1e20;
         var val;
-        for(var i=0;i<layers_button.length;i++){
-            val =Number(layers_button[i].value);
+        for(var i=0;i<layers.length;i++){
+            val =Number(layers[i].neurons);
             if (val<min) min = val;
             if (val>max) max = val;
         }
         layer_color.domain([min, max]);
-        for(var i=0;i<layers.length;i++){
-            if (layers[i].id.indexOf("input")!=-1) continue;
-            if (layers[i].id.indexOf("output")!=-1) continue;
-            var c = Number(layers[i].getElementsByClassName("button_layer")[0].value);
-            layers[i].style["background-color"] = layer_color(c);
+        for(var i=0;i<layer_boxes.length;i++){
+            if (layer_boxes[i].id.indexOf("input")!=-1) continue;
+            if (layer_boxes[i].id.indexOf("output")!=-1) continue;
+            var idx = layer_boxes[i].getElementsByClassName("button_layer")[0].id.split("_");
+            idx = Number(idx[idx.length-1]);
+            layer_boxes[i].style["background-color"] = layer_color(layers[idx].neurons);
         }
     };
 
@@ -359,14 +427,38 @@
         }
     };
 
+    var genTrainingStrategyStringOneLayer = function(input){
+        var str = "";
+        for(var key in input){
+            if (String(input[key]).length<1) continue;
+            str += key + "=" + String(input[key]) + ",";
+        }
+        return str.substr(0, str.length-1);
+    };
+
+    var genTrainingStrategyString = function(input){
+        if (input===undefined || input.type===undefined) return "";
+        if (input.type=="output") return "";
+        if (input.type=="input") return "" + genTrainingStrategyString(layers[input.connected.after]);
+        if (input.type!="input" && input.type!="output"){
+            return genTrainingStrategyStringOneLayer(input.trainingStrategy)+"|"+genTrainingStrategyString(layers[input.connected.after]);
+        }
+    };
+
     var save_net = function(){
-        var layout = genLayerString(getInputLayer());
-        if (layout.length<2){
+        var input_layer = getInputLayer();
+        var layout = genLayerString(input_layer);
+        var training_strategy = genTrainingStrategyString(input_layer);
+        if (layout.length<2 || training_strategy.length<2){
             getMessageBox("warning_nonet").show();
+            console.log("Layout="+layout);
+            console.log("TrainingStrategy="+training_strategy);
             return;
         }
-        layout = layout.substr(0, layout.length-1).split(",");
-        console.log(layout);
+        layout = layout.substr(0, layout.length-1);
+        training_strategy = training_strategy.substr(0, training_strategy.length-1);
+        console.log("Layout="+layout);
+        console.log("TrainingStrategy="+training_strategy);
     };
 
     var events = function(){
@@ -402,7 +494,7 @@
         addLayer("layer_output", false, false, true, "<center>Output layer</center>");
 
         addNeuronsToLayer();
-        traningStrategyForm();
+        trainingStrategyForm();
     };
 
     return NetworkDesigner;

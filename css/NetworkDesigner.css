@@ -131,3 +131,23 @@
 #ts_link{
     margin-top: 10px;
 }
+
+#neuronnum_layer_dialog input:not(.ui-button) {
+    width: 100px;
+}
+
+#neuronnum_layer_dialog label{
+    padding-right: 5px;
+}
+
+#trainingstrategy_dialog tr td:first-child {
+    float: right;
+}
+
+#trainingstrategy_dialog input {
+    width: 150px;
+}
+
+#trainingstrategy_dialog label {
+    padding-right: 10px;
+}
