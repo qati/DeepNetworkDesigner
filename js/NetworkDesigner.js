@@ -457,8 +457,8 @@
         }
         layout = layout.substr(0, layout.length-1);
         training_strategy = training_strategy.substr(0, training_strategy.length-1);
-        console.log("Layout="+layout);
-        console.log("TrainingStrategy="+training_strategy);
+        alert("Layout="+layout);
+        alert("TrainingStrategy="+training_strategy);
     };
 
     var events = function(){
