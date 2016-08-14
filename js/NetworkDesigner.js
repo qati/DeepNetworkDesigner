@@ -3,12 +3,13 @@
  */
 
 (function (factory) {
-    require.config({
+    var baseURL = require.toUrl("./NetworkDesigner.js").replace("NetworkDesigner.js", "");
+    var req = require.config({
         paths: {
-            "jquery": "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.0/jquery.min",
+            "jquery": "https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min",
             "jquery-ui": "https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.0/jquery-ui.min",
-            "jquery-connections": "jquery.connections.min",
-            "jquery-timing": "jquery-timing.min",
+            "jquery-connections": baseURL+"jquery.connections.min",
+            "jquery-timing": baseURL+"jquery-timing.min",
             "d3": "https://root.cern.ch/js/notebook/scripts/d3.v3.min"
         },
         shim: {
@@ -25,8 +26,10 @@
         }
     });
     define(['jquery', 'd3', 'jquery-ui', 'jquery-connections', 'jquery-timing'], function (jQ, d3) {
+        console.log(requirejs.s.contexts)
         return factory({}, jQ, d3);
-    })
+    });
+
 })(function (NetworkDesigner, $, d3) {
 
     var containerID;
@@ -34,21 +37,26 @@
     var globalOptions = {
         H: false,
         V: false,
+        VerbosityLevel: "Default",
         VarTransform: "Normalize",
         ErrorStrategy: "CROSSENTROPY",
-        WeightInitialization: "XAVIERUNIFORM"
+        WeightInitialization: "XAVIER",
+        CreateMVAPdfs: false,
+        IgnoreNegWeightsInTraining: false,
+        SignalWeightsSum: 1000.0,
+        BackgroundWeightsSum: 1000.0
     };
 
     var layers = Array();
     var layersID;
     var layer_ids = {
-        Identity: "layer_identity",
-        Sigmoid: "layer_sigmoid",
-        TANH: "layer_tanh",
-        LINEAR: "layer_linear",
         ReLU: "layer_relu",
-        Chooser: "layer_chooser",
-        Radial: "layer_radial"
+        TANH: "layer_tanh",
+        SYMMReLU: "layer_symmrelu",
+        SOFTSIGN: "layer_SOFTSIGN",
+        Sigmoid: "layer_sigmoid",
+        LINEAR: "layer_linear",
+        GAUSS: "layer_gauss"
     };
 
     var connection_queue = [];
@@ -99,16 +107,16 @@
                 after: null
             },
             trainingStrategy: {
-                LearningRate: 1e-1,
-                Momentum: 0.0,
-                Repetitions: 1,
-                ConvergenceSteps: 500,
-                BatchSize: 10,
-                TestRepetitions: 1,
-                WeightDecay: 0.001,
+                LearningRate: 1e-5,
+                Momentum: 0.3,
+                Repetitions: 3,
+                ConvergenceSteps: 100,
+                BatchSize: 30,
+                TestRepetitions: 7,
+                WeightDecay: 0.0,
                 Regularization: "NONE",
                 DropConfig: "",
-                DropRepetitions: "",
+                DropRepetitions: 3,
                 Multithreading: true
             }
         };
@@ -238,21 +246,42 @@
 
     var trainingStrategyForm = function(){
         var checkboxes = ["Multithreading"];
-        $("#"+containerID).append("<div id='trainingstrategy_dialog' title='Training Strategy' style='display: none'>\
-            <table>\
-            <tr><td><label>LearningRate:</label></td><td><input type='text' id='trainingstrategy_LearningRate' /></td></tr>\
-            <tr><td><label>Momentum:</label></td><td><input type='text' id='trainingstrategy_Momentum' /></td></tr>\
-            <tr><td><label>Repetitions:</label></td><td><input type='text' id='trainingstrategy_Repetitions'/></td></tr>\
-            <tr><td><label>ConvergenceSteps:</label></td><td><input type='text' id='trainingstrategy_ConvergenceSteps' /></td></tr>\
-            <tr><td><label>BatchSize:</label></td><td><input type='text' id='trainingstrategy_BatchSize' /></td></tr>\
-            <tr><td><label>TestRepetitions:</label></td><td><input type='text' id='trainingstrategy_TestRepetitions' /></td></tr>\
-            <tr><td><label>WeightDecay:</label></td><td><input type='text' id='trainingstrategy_WeightDecay' /></td></tr>\
-            <tr><td><label>Regularization:</label></td><td><input type='text' id='trainingstrategy_Regularization' /></td></tr>\
-            <tr><td><label>DropConfig:</label></td><td><input type='text' id='trainingstrategy_DropConfig' /></td></tr>\
-            <tr><td><label>DropRepetitions:</label></td><td><input type='text' id='trainingstrategy_DropRepetitions' /></td></tr>\
-            <tr><td><label>Multithreading:</label></td><td><input type='checkbox' id='trainingstrategy_Multithreading' /></td></tr>\
-            </table\
-            </div>");
+        var form = new Map();
+        form.set("LearningRate", {
+            type: "text"
+        });
+        form.set("Momentum", {
+            type: "text"
+        });
+        form.set("Repetitions", {
+            type: "text"
+        });
+        form.set("ConvergenceSteps", {
+            type: "text"
+        });
+        form.set("BatchSize", {
+            type: "text"
+        });
+        form.set("TestRepetitions", {
+            type: "text"
+        });
+        form.set("WeightDecay", {
+            type: "text"
+        });
+        form.set("Regularization", {
+            type: "select",
+            options: ["NONE", "L1", "L2", "L1MAX"]
+        });
+        form.set("DropConfig", {
+            type: "text"
+        });
+        form.set("DropRepetitions", {
+            type: "text"
+        });
+        form.set("Multithreading", {
+            type: "checkbox"
+        });
+        $("#"+containerID).append("<div id='trainingstrategy_dialog' title='Training Strategy' style='display: none'>"+createForm("trainingstrategy", form)+"</div>");
         $("#trainingstrategy_dialog").dialog({
             autoOpen: false,
             width: 400,
@@ -268,21 +297,7 @@
                 var arr = $(this).data("formID").split("_");
                 var i   = Number(arr[arr.length-1]);
                 var ts = layers[i].trainingStrategy;
-                for(var opt in ts){
-                    if (ts[opt]===true || ts[opt]===false){
-                        $("#trainingstrategy_"+opt).prop("checked", ts[opt]);
-                        $("#trainingstrategy_"+opt).change(function(){
-                           $(this).val(this.checked ? 1 : 0);
-                        });
-                        if (ts[opt]==true){
-                            $("#trainingstrategy_" + opt).val(1);
-                        } else {
-                            $("#trainingstrategy_" + opt).val(0);
-                        }
-                    } else {
-                        $("#trainingstrategy_" + opt).val(ts[opt]);
-                    }
-                }
+                syncForm("trainingstrategy", form, ts);
             },
             buttons: {
                 "OK": function(){
@@ -315,20 +330,91 @@
         }).data('formID', '-1');
     };
 
+    var createForm = function(id, form){
+        var string = "<table>";
+        form.forEach(function(opts, optID){
+            string += "<tr>";
+            if ("title" in  opts){
+                string += "<td><label>"+opts["title"]+"</label></td>";
+            } else {
+                string += "<td><label>"+optID+"</label></td>";
+            }
+            string += "<td>";
+            if (opts["type"]=="select"){
+                string += "<select id=\""+id+"_"+optID+"\">";
+                for(var i=0; i<opts["options"].length;i++){
+                    string += "<option value=\""+opts["options"][i]+"\">"+opts["options"][i]+"</option>";
+                }
+                string += "</select>";
+            } else {
+                string += "<input type=\"" + opts["type"] + "\" id=\"" + id + "_" + optID + "\" />";
+            }
+            string += "</td>";
+            string += "</tr>";
+        });
+        string += "</table>";
+        return string;
+    };
+
+    var syncForm = function(id, form, options){
+        for(var opt in options){
+            if (options[opt]===true || options[opt]===false){
+                $("#"+id+"_"+opt).prop("checked", options[opt]);
+                $("#"+id+"_"+opt).change(function(){
+                    $(this).attr("value", this.checked ? 1 : 0);
+                });
+                if (options[opt]==true){
+                    $("#"+id+"_" + opt).val(1);
+                } else {
+                    $("#" + id + "_" + opt).val(0);
+                }
+            } else {
+                $("#"+id+"_" + opt).val(options[opt]);
+            }
+        }
+    };
+
     var globalOptionsForm = function(){
-        var checkboxes = ["H", "V"];
-        $("#"+containerID).append("<div id='globopts_dialog' title='Global options' style='display: none'>\
-            <table>\
-            <tr><td><label>Help messages:</label></td><td><input type='checkbox' id='globopts_H' /></td></tr>\
-            <tr><td><label>Verbose:</label></td><td><input type='checkbox' id='globopts_V' /></td></tr>\
-            <tr><td><label>VarTransform:</label></td><td><input type='text' id='globopts_VarTransform' /></td></tr>\
-            <tr><td><label>ErrorStrategy:</label></td><td><input type='text' id='globopts_ErrorStrategy' /></td></tr>\
-            <tr><td><label>WeightInitialization:</label></td><td><input type='text' id='globopts_WeightInitialization' /></td></tr>\
-            </table\
-            </div>");
+        var form = new Map();
+        form.set("V", {
+            type: "checkbox",
+            title: "Verbose"
+        });
+        form.set("VerbosityLevel", {
+            type: "select",
+            options: ["Default", "Debug", "Verbose", "Info", "Warning", "Error", "Fatal"]
+        });
+        form.set("H", {
+            type: "checkbox",
+            title: "Help messages"
+        });
+        form.set("VarTransform", {
+            type: "text"
+        });
+        form.set("CreateMVAPdfs",{
+            type: "checkbox"
+        });
+        form.set("IgnoreNegWeightsInTraining", {
+           type: "checkbox"
+        });
+        form.set("ErrorStrategy", {
+            type: "select",
+            options: ["CROSSENTROPY", "SUMOFSQUARES", "MUTUALEXCLUSIVE", "CHECKGRADIENTS"]
+        });
+        form.set("WeightInitialization", {
+            type: "select",
+            options: ["XAVIER", "XAVIERUNIFORM", "LAYERSIZE"]
+        });
+        form.set("SignalWeightsSum", {
+            type: "text"
+        });
+        form.set("BackgroundWeightsSum", {
+            type: "text"
+        });
+        $("#"+containerID).append("<div id='globopts_dialog' title='Global options' style='display: none'>"+createForm("globopts", form)+"</div>");
         $("#globopts_dialog").dialog({
             autoOpen: false,
-            width: 400,
+            width: 440,
             show: {
                 effect: "fade",
                 duration: 500
@@ -338,41 +424,23 @@
                 duration: 500
             },
             open: function(){
-                for(var opt in globalOptions){
-                    if (globalOptions[opt]===true || globalOptions[opt]===false){
-                        $("#globopts_"+opt).attr("checked", globalOptions[opt]);
-                        $("#globopts_"+opt).change(function(){
-                            $(this).attr("value", this.checked ? 1 : 0);
-                        });
-                        if (globalOptions[opt]==true){
-                            $("#globopts_" + opt).attr("value", 1);
-                        } else {
-                            $("#globopts_" + opt).attr("value", 0);
-                        }
-                    } else {
-                        $("#globopts_" + opt).attr("value", globalOptions[opt]);
-                    }
-                }
+                syncForm("globopts", form, globalOptions);
             },
             buttons: {
                 "OK": function(){
-                    var arr = $("#globopts_dialog input");
+                    var arr = $("#globopts_dialog input, #globopts_dialog select");
                     var id;
-                    var changed;
                     for(var i=0;i<arr.length;i++){
-                        changed = false;
                         id = arr[i].id.split("_")[1];
-                        for(var j=0;j<checkboxes.length;j++){
-                            if (checkboxes[j]==id) {
-                                if (Number(arr[i].value)==1){
-                                    globalOptions[id] = true;
-                                } else {
-                                    globalOptions[id] = false;
-                                }
-                                changed = true;
+                        if (form.get(id)["type"]=="checkbox"){
+                            if (Number(arr[i].value)==1){
+                                globalOptions[id] = true;
+                            } else {
+                                globalOptions[id] = false;
                             }
+                        } else {
+                            globalOptions[id] = arr[i].value;
                         }
-                        if (!changed) globalOptions[id] = arr[i].value;
                     }
                     $(this).dialog("close");
                 },
@@ -418,7 +486,7 @@
         };
 
         this.menuEntry = function () {
-            return "<li id='"+id+"'><div>"+title+"</div></li>";
+            return "<li class='nd_menu_element' id='"+id+"'><div>"+title+"</div></li>";
         };
     };
 
@@ -433,9 +501,9 @@
 
         html += "<div id='nd_menu_div'><ul id='nd_menu'>";
 
-        html += "<li><div id='globopts_menu'>Global options</div></li>";
+        html += "<li class='nd_menu_element'><div id='globopts_menu'>Global options</div></li>";
 
-        html += "<li><div>Add layer</div><ul>";
+        html += "<li class='nd_menu_dropdown'><div>Add layer</div><ul class='nd_menu_dropdown_content'>";
         for(var i in layer_ids){
             html += "<li id='"+layer_ids[i]+"'><div>"+getText(layer_ids[i])+"</div></li>";
         }
@@ -446,26 +514,14 @@
             html += helpMessages[i].menuEntry();
         }
 
-        html += "<li id='scale_layer_color'><div>Scale colors</div></li>";
+        html += "<li class='nd_menu_element' id='scale_layer_color'><div>Scale colors</div></li>";
 
-        html += "<li id='save_net'><div>Save network</div></li>";
+        html += "<li class='nd_menu_element' id='save_net'><div>Save network</div></li>";
 
         html += "</ul></div>";
 
         $("#"+containerID).append(html);
 
-        var position = {my: "left top", at: "left bottom+8"};
-        $( "#nd_menu" ).menu().menu({
-            position: position,
-            blur: function() {
-                $(this).menu("option", "position", position);
-            },
-            focus: function(e, ui) {
-                if ($("#nd_menu").get(0) !== $(ui).get(0).item.parent().get(0)) {
-                    $(this).menu("option", "position", {my: "left top", at: "left top"});
-                }
-            }
-        });
     };
 
     var scale_colors = function () {
@@ -552,7 +608,9 @@
     };
 
     var save_net = function(){
-        alert(genOptString());
+        var kernel = IPython.notebook.kernel;
+        var command = "optString="+genOptString();
+        kernel.execute(command);
     };
 
     var events = function(){
